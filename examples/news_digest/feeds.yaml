@@ -1,0 +1,6 @@
+feeds:
+  - name: Google AI Developers Blog
+    url: https://developers.googleblog.com/en/search/?technology_categories=AI&format=rss
+  - name: Hacker News
+    url: https://hnrss.org/frontpage
+

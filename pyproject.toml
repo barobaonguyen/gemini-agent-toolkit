@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gemini-agent-toolkit"
+version = "0.1.0"
+description = "Gemini-native agent toolkit with tool calling, structured output, prompt caching, and cost tracking."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Bao Nguyen" }]
+keywords = ["gemini", "agents", "llm", "ai", "google-genai"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+  "google-genai>=1.0.0",
+  "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2",
+  "mypy>=1.10",
+  "pytest>=8.2",
+  "pytest-cov>=5.0",
+  "ruff>=0.6.0",
+  "twine>=5.1",
+]
+examples = [
+  "feedparser>=6.0",
+  "httpx>=0.27",
+  "python-dotenv>=1.0",
+  "pyyaml>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/barobaonguyen/gemini-agent-toolkit"
+Repository = "https://github.com/barobaonguyen/gemini-agent-toolkit"
+Issues = "https://github.com/barobaonguyen/gemini-agent-toolkit/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gat"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
