@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Final
 
 PRICING_SOURCE_URL: Final[str] = "https://ai.google.dev/gemini-api/docs/pricing"
-PRICING_SOURCE_DATE: Final[str] = "2026-05-25"
+PRICING_SOURCE_DATE: Final[str] = "2026-06-02"
 
 
 @dataclass(frozen=True)
@@ -84,4 +84,3 @@ def estimate_cost_usd(
         + cached * pricing.cached_input_per_1m
         + output * pricing.output_per_1m
     ) / 1_000_000
-

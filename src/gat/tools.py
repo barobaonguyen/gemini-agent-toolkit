@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import builtins
+import importlib
 import inspect
 import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeVar, get_type_hints, overload
 
+from gat.retry import retry
 from gat.schemas import python_type_to_schema
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -152,6 +154,103 @@ def get_tool_spec(func: Callable[..., Any]) -> ToolSpec:
     if isinstance(existing, ToolSpec):
         return existing
     return ToolSpec.from_callable(func)
+
+
+def google_search_grounding_tool(
+    client: Any,
+    *,
+    name: str = "google_search",
+    system: str | None = None,
+    temperature: float = 0.2,
+    thinking_budget: int | None = 0,
+) -> Callable[[str], dict[str, Any]]:
+    """Return an agent-callable Gemini Google Search grounding tool."""
+
+    sdk_tool = _google_search_sdk_tool()
+
+    @tool(
+        name=name,
+        description="Search Google through Gemini grounding and return an answer with sources.",
+    )
+    @retry(attempts=3, base_delay_s=1.0)
+    def google_search(query: str) -> dict[str, Any]:
+        """Search the web with Gemini Google Search grounding.
+
+        Args:
+            query: Specific research question to ground with Google Search.
+        """
+
+        response = client._ensure_client().models.generate_content(
+            model=client.model,
+            contents=query,
+            config=client._build_config(
+                system=system,
+                thinking_budget=thinking_budget,
+                temperature=temperature,
+                tools=[sdk_tool],
+            ),
+        )
+        client._record_usage(response)
+        return {
+            "answer": client._response_text(response),
+            "queries": _grounding_queries(response),
+            "sources": _grounding_sources(response),
+        }
+
+    return google_search
+
+
+def _google_search_sdk_tool() -> Any:
+    try:
+        types = importlib.import_module("google.genai.types")
+        return types.Tool(google_search=types.GoogleSearch())
+    except Exception:
+        return {"google_search": {}}
+
+
+def _grounding_queries(response: Any) -> list[str]:
+    metadata = _grounding_metadata(response)
+    queries = _value(metadata, "web_search_queries", "webSearchQueries")
+    if isinstance(queries, list):
+        return [query for query in queries if isinstance(query, str)]
+    return []
+
+
+def _grounding_sources(response: Any) -> list[dict[str, str]]:
+    metadata = _grounding_metadata(response)
+    chunks = _value(metadata, "grounding_chunks", "groundingChunks")
+    if not isinstance(chunks, list):
+        return []
+
+    sources: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for chunk in chunks:
+        web = _value(chunk, "web")
+        uri = _value(web, "uri")
+        if not isinstance(uri, str) or uri in seen:
+            continue
+        title = _value(web, "title")
+        sources.append({"title": title if isinstance(title, str) else uri, "uri": uri})
+        seen.add(uri)
+    return sources
+
+
+def _grounding_metadata(response: Any) -> Any | None:
+    candidates = getattr(response, "candidates", None)
+    if not candidates:
+        return None
+    candidate = candidates[0]
+    return _value(candidate, "grounding_metadata", "groundingMetadata")
+
+
+def _value(obj: Any, *names: str) -> Any:
+    for field_name in names:
+        if isinstance(obj, Mapping) and field_name in obj:
+            return obj[field_name]
+        value = getattr(obj, field_name, None)
+        if value is not None:
+            return value
+    return None
 
 
 def _first_doc_line(doc: str) -> str:

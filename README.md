@@ -1,6 +1,6 @@
 # gemini-agent-toolkit
 
-**LangGraph for Gemini - production AI agents with cost tracking, prompt caching, and structured output in 30 lines.**
+**LangGraph for Gemini - production AI agents with streaming, cost tracking, prompt caching, and structured output in 30 lines.**
 
 [![PyPI](https://img.shields.io/pypi/v/gemini-agent-toolkit.svg)](https://pypi.org/project/gemini-agent-toolkit/)
 [![CI](https://github.com/barobaonguyen/gemini-agent-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/barobaonguyen/gemini-agent-toolkit/actions/workflows/ci.yml)
@@ -61,10 +61,41 @@ TokenInfo(symbol='PEPE', market_cap_usd=50000000.0, risk_score=6)
 {'total_usd': 0.0023, 'calls': 3, 'cached_tokens': 1200, ...}
 ```
 
+## Streaming
+
+Stream direct model output while keeping token usage in `CostTracker`:
+
+```python
+from gat import GeminiClient
+
+client = GeminiClient(model="gemini-2.5-flash")
+
+for chunk in client.stream("Explain Gemini prompt caching in 5 bullets."):
+    print(chunk, end="", flush=True)
+
+print(client.cost_tracker.summary())
+```
+
+Tool-using agents can stream event objects:
+
+```python
+from gat import Agent, GeminiClient
+
+agent = Agent(client=GeminiClient(), tools=[...])
+
+for event in agent.stream("Research Gemini search grounding and cite sources."):
+    if event.type == "chunk":
+        print(event.payload["text"], end="", flush=True)
+    elif event.type == "tool_call":
+        print("\ncalling", event.payload["name"])
+```
+
 ## What's In The Box
 
 - **Agent loop**: a compact orchestration loop with max-iteration enforcement, tool execution, and memory writes.
+- **Streaming**: `GeminiClient.stream()` yields text chunks and `Agent.stream()` emits chunk/tool/final events.
 - **Tool decorator**: `@tool` extracts Python signatures, type hints, docstring descriptions, and OpenAPI-style parameter schemas.
+- **Google Search grounding helper**: `google_search_grounding_tool(client)` returns an agent-callable search tool backed by Gemini grounding metadata.
 - **Structured output**: `generate_structured()` returns a validated Pydantic model, not a loose dict.
 - **Cost tracking**: per-call token accounting with frozen Gemini 2.5 Pro, Flash, and Flash-Lite pricing.
 - **Prompt caching helpers**: cache-key utilities plus a thin explicit-cache wrapper for the Google GenAI SDK.
@@ -77,10 +108,11 @@ TokenInfo(symbol='PEPE', market_cap_usd=50000000.0, risk_score=6)
 | [X Scout](examples/x_scout/) | Pull candidate posts, rank them with Gemini structured output, emit ranked JSON. | Structured output, batch API, cost tracking |
 | [On-chain Alerter](examples/onchain_alerter/) | Receive wallet activity, enrich it, classify with Gemini, and optionally send Telegram alerts. | Tool use, memory, retry |
 | [News Digest](examples/news_digest/) | Read RSS feeds, dedupe through JSONL memory, summarize into Markdown. | Prompt caching, JSONL replay, structured summaries |
+| [Research Agent](examples/research_agent/) | Decompose a research question, call Gemini Google Search grounding, stream the answer with citations. | Streaming, tools, memory, grounded sources |
 
 ## Cost Optimization
 
-The pricing table in `gat.pricing` is frozen on 2026-05-25 from the Gemini Developer API pricing page. It intentionally tracks a small set of commonly used text models so local estimates are deterministic.
+The pricing table in `gat.pricing` is frozen on 2026-06-02 from the Gemini Developer API pricing page. It intentionally tracks a small set of commonly used text models so local estimates are deterministic.
 
 | Model | Input / 1M | Cached input / 1M | Output / 1M | Same 100k in + 10k out |
 |---|---:|---:|---:|---:|
@@ -94,7 +126,7 @@ More detail: [Cost Optimization](docs/cost_optimization.md).
 
 ## When To Use This
 
-Use this when you are building Gemini-first Python agents and want the repeated production pieces solved without adopting a broad framework. Use raw `google-genai` when you only need one or two calls. Use LangChain or LangGraph when you need a large ecosystem of integrations, graph orchestration, or multi-provider portability.
+Use this when you are building Gemini-first Python agents and want the repeated production pieces solved without adopting a broad framework. Use raw `google-genai` when you only need one or two calls. Use LangChain or LangGraph when you need a large ecosystem of integrations, graph orchestration, or multi-provider portability. Need crawler-scale collection before synthesis? → Trawlkit.
 
 See [Comparison](docs/comparison.md).
 
@@ -115,9 +147,8 @@ Then follow [docs/quickstart.md](docs/quickstart.md).
 
 ## Contributing
 
-Issues and small PRs are welcome. Keep the project Gemini-native, Python-only, and focused on orchestration, structured output, caching, retries, memory, and cost visibility. RAG integrations, browser automation, and multi-provider abstractions are intentionally outside v0.1.
+Issues and small PRs are welcome. Keep the project Gemini-native, Python-only, and focused on orchestration, streaming, structured output, caching, retries, memory, and cost visibility. RAG integrations, browser automation, and multi-provider abstractions are intentionally outside v0.2.
 
 ## License
 
 MIT
-

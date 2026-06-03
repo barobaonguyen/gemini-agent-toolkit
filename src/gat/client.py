@@ -6,6 +6,7 @@ import importlib
 import json
 import os
 import re
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeAlias
 
@@ -63,6 +64,23 @@ class GeminiClient:
         )
         self._record_usage(response)
         return self._response_text(response)
+
+    def stream(
+        self,
+        prompt: Prompt,
+        system: str | None = None,
+        thinking_budget: int | None = None,
+        temperature: float = 0.7,
+    ) -> Iterator[str]:
+        from gat.stream import stream_generate
+
+        return stream_generate(
+            self,
+            prompt,
+            system=system,
+            thinking_budget=thinking_budget,
+            temperature=temperature,
+        )
 
     def generate_structured(
         self,
@@ -130,6 +148,7 @@ class GeminiClient:
         temperature: float = 0.7,
         response_mime_type: str | None = None,
         response_schema: dict[str, Any] | None = None,
+        tools: list[Any] | None = None,
     ) -> Any:
         kwargs: dict[str, Any] = {"temperature": temperature}
         if system is not None:
@@ -138,6 +157,8 @@ class GeminiClient:
             kwargs["response_mime_type"] = response_mime_type
         if response_schema is not None:
             kwargs["response_schema"] = response_schema
+        if tools is not None:
+            kwargs["tools"] = tools
         try:
             types = importlib.import_module("google.genai.types")
             if thinking_budget is not None:

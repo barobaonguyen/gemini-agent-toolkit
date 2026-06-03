@@ -1,6 +1,6 @@
 # Cost Optimization
 
-`gemini-agent-toolkit` keeps a frozen pricing table in `gat.pricing` so local cost estimates stay reproducible. The v0.1 table was checked on 2026-05-25 against the official Gemini Developer API pricing page:
+`gemini-agent-toolkit` keeps a frozen pricing table in `gat.pricing` so local cost estimates stay reproducible. The v0.2 table was checked on 2026-06-02 against the official Gemini Developer API pricing page:
 
 https://ai.google.dev/gemini-api/docs/pricing
 
@@ -58,4 +58,3 @@ For a 100k-token shared context and 10k-token output:
 | Flash-Lite with 80k cached input | $0.0068 |
 
 The exact savings depend on prompt length, output length, model selection, and whether the cached portion is actually reused.
-

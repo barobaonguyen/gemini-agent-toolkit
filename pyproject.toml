@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gemini-agent-toolkit"
-version = "0.1.0"
-description = "Gemini-native agent toolkit with tool calling, structured output, prompt caching, and cost tracking."
+version = "0.2.0"
+description = "Gemini-native agent toolkit with streaming, tool calling, structured output, prompt caching, and cost tracking."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -52,4 +52,3 @@ packages = ["src/gat"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-

@@ -112,8 +112,96 @@ class Agent:
 
         raise MaxIterationsExceeded(f"agent exceeded max_iterations={self.max_iterations}")
 
-    def stream(self, task: str) -> Iterator[AgentEvent]:
-        raise NotImplementedError("streaming agent events are planned for v0.2")
+    def stream(
+        self,
+        task: str,
+        output_schema: type[BaseModel] | None = None,
+    ) -> Iterator[AgentEvent]:
+        if not self.tools.list():
+            if output_schema is not None:
+                structured_result = self.client.generate_structured(
+                    task, output_schema, system=self.system
+                )
+                output = structured_result.model_dump()
+                self.memory.add({"type": "final", "task": task, "output": output})
+                yield AgentEvent("final", {"output": output})
+                return
+            self.memory.add({"type": "task", "task": task, "ts": time.time()})
+            chunks: list[str] = []
+            for chunk in self.client.stream(task, system=self.system):
+                chunks.append(chunk)
+                yield AgentEvent("chunk", {"text": chunk})
+            text_result = "".join(chunks).strip()
+            self.memory.add({"type": "final", "task": task, "output": text_result})
+            yield AgentEvent("final", {"output": text_result})
+            return
+
+        history: list[dict[str, Any]] = []
+        self.memory.add({"type": "task", "task": task, "ts": time.time()})
+
+        for iteration in range(1, self.max_iterations + 1):
+            prompt = self._render_prompt(task, history, output_schema=output_schema)
+            chunks = []
+            for chunk in self.client.stream(prompt, system=self.system):
+                chunks.append(chunk)
+                yield AgentEvent("chunk", {"iteration": iteration, "text": chunk})
+
+            response = "".join(chunks).strip()
+            self.memory.add(
+                {
+                    "type": "assistant",
+                    "iteration": iteration,
+                    "content": response,
+                    "ts": time.time(),
+                }
+            )
+
+            parsed = _maybe_json(response)
+            tool_call = _extract_tool_call(parsed)
+            if tool_call is None:
+                final_result = self._coerce_final(response, parsed, output_schema=output_schema)
+                self.memory.add(
+                    {
+                        "type": "final",
+                        "iteration": iteration,
+                        "output": _serializable(final_result),
+                        "ts": time.time(),
+                    }
+                )
+                yield AgentEvent(
+                    "final",
+                    {"iteration": iteration, "output": _serializable(final_result)},
+                )
+                return
+
+            name, args = tool_call
+            self.memory.add(
+                {"type": "tool_call", "iteration": iteration, "name": name, "args": args}
+            )
+            yield AgentEvent("tool_call", {"iteration": iteration, "name": name, "args": args})
+            tool_result = self.tools.execute(name, args)
+            serializable_result = _serializable(tool_result)
+            self.memory.add(
+                {
+                    "type": "tool_result",
+                    "iteration": iteration,
+                    "name": name,
+                    "result": serializable_result,
+                    "ts": time.time(),
+                }
+            )
+            yield AgentEvent(
+                "tool_result",
+                {"iteration": iteration, "name": name, "result": serializable_result},
+            )
+            history.append(
+                {
+                    "tool_call": {"name": name, "args": args},
+                    "tool_result": tool_result,
+                }
+            )
+
+        raise MaxIterationsExceeded(f"agent exceeded max_iterations={self.max_iterations}")
 
     def _render_prompt(
         self,
