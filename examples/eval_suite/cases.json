@@ -1,0 +1,20 @@
+[
+  {
+    "name": "capital_of_france",
+    "prompt": "What is the capital of France? Answer with just the city name.",
+    "expected": "Paris",
+    "matcher": "contains"
+  },
+  {
+    "name": "arithmetic_exact",
+    "prompt": "Compute 12 * 12 and reply with only the number.",
+    "expected": "144",
+    "matcher": "exact"
+  },
+  {
+    "name": "list_a_prime",
+    "prompt": "Name one prime number between 10 and 20.",
+    "expected": "1[1379]",
+    "matcher": "regex"
+  }
+]

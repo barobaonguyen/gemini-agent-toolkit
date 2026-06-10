@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import json
 import os
@@ -82,6 +83,28 @@ class GeminiClient:
             temperature=temperature,
         )
 
+    async def agenerate(
+        self,
+        prompt: Prompt,
+        system: str | None = None,
+        thinking_budget: int | None = None,
+        temperature: float = 0.7,
+    ) -> str:
+        """Async text generation.
+
+        Runs the blocking SDK call in a worker thread so the event loop stays
+        free to drive concurrent tool execution. Cost accounting and the
+        configured timeout are preserved by delegating to :meth:`generate`.
+        """
+
+        return await asyncio.to_thread(
+            self.generate,
+            prompt,
+            system=system,
+            thinking_budget=thinking_budget,
+            temperature=temperature,
+        )
+
     def generate_structured(
         self,
         prompt: Prompt,
@@ -109,6 +132,23 @@ class GeminiClient:
         text = self._response_text(response)
         data = _extract_json(text)
         return schema.model_validate(data)
+
+    async def agenerate_structured(
+        self,
+        prompt: Prompt,
+        schema: type[BaseModel],
+        system: str | None = None,
+        thinking_budget: int | None = None,
+    ) -> BaseModel:
+        """Async structured generation (see :meth:`agenerate`)."""
+
+        return await asyncio.to_thread(
+            self.generate_structured,
+            prompt,
+            schema,
+            system=system,
+            thinking_budget=thinking_budget,
+        )
 
     def batch(
         self,

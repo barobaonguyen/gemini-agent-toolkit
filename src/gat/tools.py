@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import builtins
 import importlib
 import inspect
@@ -98,6 +99,19 @@ class ToolRegistry:
 
     def execute(self, name: str, args: Mapping[str, Any] | None = None) -> Any:
         return self.get(name)(**dict(args or {}))
+
+    async def aexecute(self, name: str, args: Mapping[str, Any] | None = None) -> Any:
+        """Execute one tool without blocking the event loop.
+
+        Awaits native coroutine tools directly; runs sync tools in a worker
+        thread so several can be gathered concurrently.
+        """
+
+        spec = self.get(name)
+        kwargs = dict(args or {})
+        if inspect.iscoroutinefunction(spec.func):
+            return await spec.func(**kwargs)
+        return await asyncio.to_thread(spec, **kwargs)
 
     def list(self) -> builtins.list[ToolSpec]:
         return list(self._tools.values())

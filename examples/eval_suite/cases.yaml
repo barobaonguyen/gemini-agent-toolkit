@@ -1,0 +1,28 @@
+# Golden-set eval suite for the gat eval harness.
+#
+# Each case: prompt + expected, with one matcher:
+#   exact      output equals expected (trimmed; case-insensitive by default)
+#   contains   expected is a substring of the output (default)
+#   regex      expected is a regex searched against the output
+#   llm_judge  a Gemini judge grades the answer against the expected one
+#
+# Cases are generic and public — no secrets, handles, or private data.
+- name: capital_of_france
+  prompt: "What is the capital of France? Answer with just the city name."
+  expected: "Paris"
+  matcher: contains
+
+- name: arithmetic_exact
+  prompt: "Compute 12 * 12 and reply with only the number."
+  expected: "144"
+  matcher: exact
+
+- name: list_a_prime
+  prompt: "Name one prime number between 10 and 20."
+  expected: "1[1379]"
+  matcher: regex
+
+- name: explain_async
+  prompt: "In one sentence, what does asyncio.gather do in Python?"
+  expected: "It runs multiple awaitables concurrently and returns their results."
+  matcher: llm_judge

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from collections.abc import Callable, Iterable, Iterator
@@ -203,6 +204,90 @@ class Agent:
 
         raise MaxIterationsExceeded(f"agent exceeded max_iterations={self.max_iterations}")
 
+    async def arun(
+        self,
+        task: str,
+        output_schema: type[BaseModel] | None = None,
+    ) -> str | BaseModel:
+        """Async agent loop with concurrent multi-tool execution.
+
+        Mirrors :meth:`run`, but when the model requests several tool calls in a
+        single turn they are dispatched together via :func:`asyncio.gather`
+        instead of serially. Cost accounting (delegated to the client) and the
+        tool-level retry decorators stay intact because each call still flows
+        through the same client/registry code paths.
+        """
+
+        if not self.tools.list():
+            if output_schema is not None:
+                structured_result = await self.client.agenerate_structured(
+                    task, output_schema, system=self.system
+                )
+                self.memory.add(
+                    {"type": "final", "task": task, "output": structured_result.model_dump()}
+                )
+                return structured_result
+            text_result = await self.client.agenerate(task, system=self.system)
+            self.memory.add({"type": "final", "task": task, "output": text_result})
+            return text_result
+
+        history: list[dict[str, Any]] = []
+        self.memory.add({"type": "task", "task": task, "ts": time.time()})
+
+        for iteration in range(1, self.max_iterations + 1):
+            prompt = self._render_prompt(task, history, output_schema)
+            response = await self.client.agenerate(prompt, system=self.system)
+            self.memory.add(
+                {
+                    "type": "assistant",
+                    "iteration": iteration,
+                    "content": response,
+                    "ts": time.time(),
+                }
+            )
+
+            parsed = _maybe_json(response)
+            tool_calls = _extract_tool_calls(parsed)
+            if not tool_calls:
+                final_result = self._coerce_final(response, parsed, output_schema)
+                self.memory.add(
+                    {
+                        "type": "final",
+                        "iteration": iteration,
+                        "output": _serializable(final_result),
+                        "ts": time.time(),
+                    }
+                )
+                return final_result
+
+            for name, args in tool_calls:
+                self.memory.add(
+                    {"type": "tool_call", "iteration": iteration, "name": name, "args": args}
+                )
+
+            results = await asyncio.gather(
+                *(self.tools.aexecute(name, args) for name, args in tool_calls)
+            )
+
+            for (name, args), tool_result in zip(tool_calls, results, strict=True):
+                self.memory.add(
+                    {
+                        "type": "tool_result",
+                        "iteration": iteration,
+                        "name": name,
+                        "result": _serializable(tool_result),
+                        "ts": time.time(),
+                    }
+                )
+                history.append(
+                    {
+                        "tool_call": {"name": name, "args": args},
+                        "tool_result": tool_result,
+                    }
+                )
+
+        raise MaxIterationsExceeded(f"agent exceeded max_iterations={self.max_iterations}")
+
     def _render_prompt(
         self,
         task: str,
@@ -278,6 +363,36 @@ def _extract_tool_call(parsed: Any) -> tuple[str, dict[str, Any]] | None:
     if not isinstance(args, dict):
         raise ValueError(f"tool args for {name} must be an object")
     return name, args
+
+
+def _extract_tool_calls(parsed: Any) -> list[tuple[str, dict[str, Any]]]:
+    """Extract one or more tool calls from a parsed model response.
+
+    Supports the single-call shapes handled by :func:`_extract_tool_call` plus a
+    ``{"tool_calls": [...]}`` list and a bare top-level list of call objects, so
+    a model can request several tools to run concurrently in one turn.
+    """
+
+    if isinstance(parsed, dict):
+        batch = parsed.get("tool_calls") or parsed.get("function_calls")
+        if isinstance(batch, list):
+            calls: list[tuple[str, dict[str, Any]]] = []
+            for item in batch:
+                call = _extract_tool_call(item)
+                if call is not None:
+                    calls.append(call)
+            return calls
+
+    if isinstance(parsed, list):
+        calls = []
+        for item in parsed:
+            call = _extract_tool_call(item)
+            if call is not None:
+                calls.append(call)
+        return calls
+
+    single = _extract_tool_call(parsed)
+    return [single] if single is not None else []
 
 
 def _extract_final_payload(parsed: Any, fallback: str) -> Any:

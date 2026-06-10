@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Final
 
 PRICING_SOURCE_URL: Final[str] = "https://ai.google.dev/gemini-api/docs/pricing"
-PRICING_SOURCE_DATE: Final[str] = "2026-06-02"
+PRICING_SOURCE_DATE: Final[str] = "2026-06-10"
 
 
 @dataclass(frozen=True)
