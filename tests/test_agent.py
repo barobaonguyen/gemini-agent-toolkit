@@ -74,3 +74,25 @@ def test_agent_without_tools_uses_structured_call() -> None:
     result = agent.run("Return ETH", output_schema=TokenInfo)
     assert result == TokenInfo(symbol="ETH", market_cap_usd=1, risk_score=2)
 
+
+def test_agent_react_planner_mode_prompts_plan_act_observe() -> None:
+    client = FakeClient(
+        [
+            '{"plan": ["fetch token"], '
+            '"tool_call": {"name": "fetch_token", "args": {"symbol": "PEPE"}}}',
+            '{"final": "PEPE looks medium risk"}',
+        ]
+    )
+    agent = Agent(
+        client=client,
+        tools=[fetch_token],
+        config={"planner": "react", "max_plan_steps": 3},
+    )
+
+    result = agent.run("Assess PEPE")
+
+    assert result == "PEPE looks medium risk"
+    assert "ReAct-style plan-then-act" in client.prompts[0]
+    assert "Decompose the task" in client.prompts[0]
+    assert "Observations:" in client.prompts[1]
+

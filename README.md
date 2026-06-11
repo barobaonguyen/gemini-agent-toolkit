@@ -3,12 +3,18 @@
 **LangGraph for Gemini - production AI agents with streaming, cost tracking, prompt caching, and structured output in 30 lines.**
 
 [![PyPI](https://img.shields.io/pypi/v/gemini-agent-toolkit.svg)](https://pypi.org/project/gemini-agent-toolkit/)
-[![CI](https://github.com/barobaonguyen/gemini-agent-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/barobaonguyen/gemini-agent-toolkit/actions/workflows/ci.yml)
+[![CI](https://github.com/baronguyen001/gemini-agent-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/baronguyen001/gemini-agent-toolkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](pyproject.toml)
 
 ```bash
 pip install gemini-agent-toolkit
+```
+
+MCP support is optional:
+
+```bash
+pip install "gemini-agent-toolkit[mcp]"
 ```
 
 [See examples](examples/) | [Quickstart](docs/quickstart.md)
@@ -117,6 +123,68 @@ agent = Agent(client=GeminiClient(), tools=[price])
 result = asyncio.run(agent.arun("Price BTC, ETH, and SOL, then summarize."))
 ```
 
+## ReAct Planner
+
+The default agent loop is unchanged. When a task benefits from explicit
+decomposition, enable the lightweight ReAct planner prompt. It asks the model to
+plan, act with tools, observe results, and continue until the same
+`max_iterations` guard stops the loop.
+
+```python
+from gat import Agent, AgentConfig, GeminiClient
+
+agent = Agent(
+    client=GeminiClient(),
+    tools=[...],
+    config=AgentConfig(planner="react", max_plan_steps=5),
+)
+
+result = agent.run("Research this token, check liquidity, then summarize risk.")
+```
+
+## MCP Tools
+
+`gat.mcp` adapts Model Context Protocol stdio servers into normal GAT tools. The
+adapter lists the server's tools, converts their input schemas to `ToolSpec`
+objects, and raises a clear install error if the optional `mcp` package is not
+installed.
+
+```python
+import sys
+from gat import Agent, GeminiClient, load_mcp_tools
+
+tools = load_mcp_tools(
+    sys.executable,
+    ["examples/mcp_agent/server.py"],
+    name_prefix="fixture",
+)
+
+agent = Agent(client=GeminiClient(), tools=tools, planner="react")
+print(agent.run("Use the fixture add tool to add 2 and 3."))
+```
+
+A tiny local stdio server fixture lives in
+[`examples/mcp_agent/`](examples/mcp_agent/).
+
+## Run Tracing
+
+Tracing is off by default. Pass a `JsonlTraceWriter` to record model calls, tool
+calls, latency, token deltas, and per-step cost as JSONL spans.
+
+```python
+from gat import Agent, GeminiClient, JsonlTraceWriter
+
+with JsonlTraceWriter("run.jsonl") as trace:
+    agent = Agent(client=GeminiClient(), tools=[...], trace=trace)
+    agent.run("Research PEPE and summarize risk.")
+```
+
+Inspect the timeline with the CLI:
+
+```bash
+gat trace view run.jsonl
+```
+
 ## Eval Harness
 
 `gat.eval` runs a golden-set suite (JSON or YAML: `prompt` + `expected`) through
@@ -138,13 +206,14 @@ A ready-to-run fixture suite lives in [`examples/eval_suite/`](examples/eval_sui
 
 ## `gat` CLI
 
-Installing the package exposes a `gat` console command with three subcommands.
+Installing the package exposes a `gat` console command with four subcommands.
 Keys are read from `GEMINI_API_KEY` (never from arguments).
 
 ```bash
 gat run "Summarize the latest Gemini pricing changes."   # one-shot agent
 gat eval examples/eval_suite/cases.yaml                   # run an eval suite
 gat cost gemini-2.5-flash 100000 10000                    # price a token count -> $0.05500000
+gat trace view run.jsonl                                  # inspect a traced run
 ```
 
 `gat run` accepts `--memory {memory,jsonl,sqlite}` (with `--memory-path`) — the
@@ -155,9 +224,12 @@ with the same `add` / `replay` / `clear` contract.
 ## What's In The Box
 
 - **Agent loop**: a compact orchestration loop with max-iteration enforcement, tool execution, and memory writes.
+- **ReAct planner**: opt-in plan-then-act prompting for decompose / act / observe workflows while preserving the default loop.
 - **Parallel tools**: `Agent.arun()` runs multiple tool calls from one turn concurrently via `asyncio.gather`, keeping cost tracking and retry intact.
+- **MCP adapter**: optional `[mcp]` stdio adapter that exposes MCP server tools as normal GAT tools.
+- **Run tracing**: optional JSONL spans for model calls, tool calls, latency, tokens, and per-step cost, plus `gat trace view`.
 - **Eval harness**: `gat.eval` scores a golden-set suite with exact / contains / regex / LLM-judge matchers and reports pass-rate plus total cost.
-- **CLI**: a `gat` console command with `run`, `eval`, and `cost` subcommands, plus a selectable JSONL or SQLite memory backend.
+- **CLI**: a `gat` console command with `run`, `eval`, `cost`, and `trace view` subcommands, plus a selectable JSONL or SQLite memory backend.
 - **Streaming**: `GeminiClient.stream()` yields text chunks and `Agent.stream()` emits chunk/tool/final events.
 - **Tool decorator**: `@tool` extracts Python signatures, type hints, docstring descriptions, and OpenAPI-style parameter schemas.
 - **Google Search grounding helper**: `google_search_grounding_tool(client)` returns an agent-callable search tool backed by Gemini grounding metadata.
@@ -175,6 +247,7 @@ with the same `add` / `replay` / `clear` contract.
 | [News Digest](examples/news_digest/) | Read RSS feeds, dedupe through JSONL memory, summarize into Markdown. | Prompt caching, JSONL replay, structured summaries |
 | [Research Agent](examples/research_agent/) | Decompose a research question, call Gemini Google Search grounding, stream the answer with citations. | Streaming, tools, memory, grounded sources |
 | [Eval Suite](examples/eval_suite/) | A golden-set fixture suite for `gat eval` covering exact, contains, regex, and LLM-judge matchers. | Eval harness, matchers, pass-rate + cost report |
+| [MCP Agent](examples/mcp_agent/) | Load tools from a local MCP stdio server fixture and call them through the agent loop. | MCP adapter, optional extras, ReAct planner |
 
 ## Cost Optimization
 
@@ -192,7 +265,7 @@ More detail: [Cost Optimization](docs/cost_optimization.md).
 
 ## When To Use This
 
-Use this when you are building Gemini-first Python agents and want the repeated production pieces solved without adopting a broad framework — now including parallel tool execution, a golden-set eval harness, and a `gat` CLI. Use raw `google-genai` when you only need one or two calls. Use LangChain or LangGraph when you need a large ecosystem of integrations, graph orchestration, or multi-provider portability. Need crawler-scale collection before synthesis? → Trawlkit.
+Use this when you are building Gemini-first Python agents and want the repeated production pieces solved without adopting a broad framework - now including MCP tools, run tracing, ReAct planning, parallel tool execution, a golden-set eval harness, and a `gat` CLI. Use raw `google-genai` when you only need one or two calls. Use LangChain or LangGraph when you need a large ecosystem of integrations, graph orchestration, or multi-provider portability. Need crawler-scale collection before synthesis? -> Trawlkit.
 
 See [Comparison](docs/comparison.md).
 
@@ -213,7 +286,7 @@ Then follow [docs/quickstart.md](docs/quickstart.md).
 
 ## Contributing
 
-Issues and small PRs are welcome. Keep the project Gemini-native, Python-only, and focused on orchestration, streaming, structured output, caching, retries, memory, evaluation, and cost visibility. RAG integrations, browser automation, and multi-provider abstractions are intentionally outside v0.3.
+Issues and small PRs are welcome. Keep the project Gemini-native, Python-only, and focused on orchestration, streaming, structured output, caching, retries, memory, evaluation, tool adapters, tracing, and cost visibility. RAG integrations, browser automation, and multi-provider abstractions are intentionally outside v0.4.
 
 ## License
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gemini-agent-toolkit"
-version = "0.3.0"
+version = "0.4.0"
 description = "Gemini-native agent toolkit with parallel tools, eval harness, a gat CLI, streaming, tool calling, structured output, prompt caching, and cost tracking."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -40,14 +40,17 @@ examples = [
   "python-dotenv>=1.0",
   "pyyaml>=6.0",
 ]
+mcp = [
+  "mcp>=1.0.0",
+]
 
 [project.scripts]
 gat = "gat.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/barobaonguyen/gemini-agent-toolkit"
-Repository = "https://github.com/barobaonguyen/gemini-agent-toolkit"
-Issues = "https://github.com/barobaonguyen/gemini-agent-toolkit/issues"
+Homepage = "https://github.com/baronguyen001/gemini-agent-toolkit"
+Repository = "https://github.com/baronguyen001/gemini-agent-toolkit"
+Issues = "https://github.com/baronguyen001/gemini-agent-toolkit/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gat"]

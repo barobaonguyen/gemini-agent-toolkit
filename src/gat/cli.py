@@ -25,6 +25,7 @@ from gat.client import GeminiClient
 from gat.eval import evaluate, format_report, load_cases
 from gat.memory import build_memory
 from gat.pricing import PRICING, estimate_cost_usd, get_pricing
+from gat.trace import view_trace
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -74,6 +75,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="Emit the cost breakdown as JSON."
     )
     cost_parser.set_defaults(func=_cmd_cost)
+
+    trace_parser = sub.add_parser("trace", help="Inspect JSONL agent traces.")
+    trace_sub = trace_parser.add_subparsers(dest="trace_command", required=True)
+    trace_view = trace_sub.add_parser("view", help="Pretty-print a JSONL trace timeline.")
+    trace_view.add_argument("path", help="Path to a run JSONL trace.")
+    trace_view.set_defaults(func=_cmd_trace_view)
 
     return parser
 
@@ -145,6 +152,11 @@ def _cmd_cost(args: argparse.Namespace, out: TextIO) -> int:
                 f"known models: {', '.join(sorted(PRICING))}\n"
             )
         out.write(f"${usd:.8f}\n")
+    return 0
+
+
+def _cmd_trace_view(args: argparse.Namespace, out: TextIO) -> int:
+    view_trace(args.path, out)
     return 0
 
 

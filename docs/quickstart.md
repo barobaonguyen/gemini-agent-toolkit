@@ -9,7 +9,7 @@ pip install gemini-agent-toolkit
 For local development:
 
 ```bash
-git clone https://github.com/barobaonguyen/gemini-agent-toolkit
+git clone https://github.com/baronguyen001/gemini-agent-toolkit
 cd gemini-agent-toolkit
 python -m pip install -e ".[dev,examples]"
 ```

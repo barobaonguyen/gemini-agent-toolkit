@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.0 - 2026-06-11
+
+- Added `gat.mcp`, an optional `[mcp]` stdio adapter that lists MCP server tools and exposes them as normal GAT `ToolSpec` objects. Shipped a local fixture in `examples/mcp_agent/`.
+- Added structured run tracing with `JsonlTraceWriter`, recording model/tool spans, latency, token deltas, and per-step cost as JSONL. Added `gat trace view <run.jsonl>` for timeline inspection.
+- Added opt-in ReAct planner prompting via `Agent(planner="react")` or `AgentConfig(planner="react")`, with `max_plan_steps` feeding the existing max-step guard. The default agent loop remains unchanged.
+- Bumped package version to `0.4.0` and documented MCP tools, tracing, ReAct planner mode, and the Trawlkit positioning note.
+- Rechecked Gemini 2.5 Pro / Flash / Flash-Lite standard text pricing against the Gemini Developer API pricing page; rates remain unchanged, so `gat.pricing` was not refreshed.
+
 ## v0.3.0 - 2026-06-10
 
 - Added `Agent.arun()`, an async agent loop that executes multiple tool calls from a single turn concurrently via `asyncio.gather`, while preserving cost accounting and per-tool retry. Backed by `GeminiClient.agenerate()` / `agenerate_structured()` and `ToolRegistry.aexecute()` (async tools awaited directly, sync tools run in worker threads).
