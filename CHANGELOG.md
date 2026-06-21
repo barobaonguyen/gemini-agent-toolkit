@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.0 - 2026-06-21
+
+- Added a cost budget guard to `CostTracker`: `total_usd()`, `remaining(cap)`,
+  `within_budget(cap)`, and `assert_within(cap)` (raises `BudgetExceededError`).
+  Call `assert_within` after each agent step to stop a run before it overspends.
+- Added `format_cost_report(tracker, fmt="text"|"markdown")` for a per-model
+  spend breakdown you can print or drop into a report.
+
 ## v0.4.0 - 2026-06-11
 
 - Added `gat.mcp`, an optional `[mcp]` stdio adapter that lists MCP server tools and exposes them as normal GAT `ToolSpec` objects. Shipped a local fixture in `examples/mcp_agent/`.

@@ -8,6 +8,15 @@ from typing import Any
 from gat.pricing import estimate_cost_usd, normalize_model
 
 
+class BudgetExceededError(RuntimeError):
+    """Raised when accumulated spend goes over a configured USD cap."""
+
+    def __init__(self, spent: float, cap: float) -> None:
+        super().__init__(f"cost budget exceeded: ${spent:.6f} > ${cap:.6f}")
+        self.spent = spent
+        self.cap = cap
+
+
 @dataclass(frozen=True)
 class CostEntry:
     model: str
@@ -80,6 +89,28 @@ class CostTracker:
     def reset(self) -> None:
         self._entries.clear()
 
+    def total_usd(self) -> float:
+        """Total spend so far, in USD."""
+        return round(sum(entry.usd for entry in self._entries), 8)
+
+    def remaining(self, usd_cap: float) -> float:
+        """USD left under ``usd_cap`` (never negative)."""
+        return max(0.0, round(usd_cap - self.total_usd(), 8))
+
+    def within_budget(self, usd_cap: float) -> bool:
+        """True while total spend is at or under ``usd_cap``."""
+        return self.total_usd() <= usd_cap
+
+    def assert_within(self, usd_cap: float) -> None:
+        """Raise :class:`BudgetExceededError` if total spend exceeds ``usd_cap``.
+
+        Call this after each step of an agent loop to stop a run before it
+        overspends.
+        """
+        spent = self.total_usd()
+        if spent > usd_cap:
+            raise BudgetExceededError(spent, usd_cap)
+
     def to_dicts(self) -> list[dict[str, Any]]:
         return [asdict(entry) for entry in self._entries]
 
@@ -104,3 +135,33 @@ class CostTracker:
         bucket["total_tokens"] = (
             int(bucket["total_tokens"]) + entry.input_tokens + entry.output_tokens
         )
+
+
+def format_cost_report(tracker: CostTracker, fmt: str = "text") -> str:
+    """Render a per-model cost breakdown as ``text`` or a ``markdown`` table."""
+    summary = tracker.summary()
+    by_model = tracker.by_model()
+    if fmt == "markdown":
+        lines = [
+            "| Model | Calls | Input | Output | USD |",
+            "|---|---:|---:|---:|---:|",
+        ]
+        for model, bucket in sorted(by_model.items()):
+            lines.append(
+                f"| {model} | {bucket['calls']} | {bucket['input_tokens']} | "
+                f"{bucket['output_tokens']} | ${bucket['total_usd']:.6f} |"
+            )
+        lines.append(
+            f"| **total** | {summary['calls']} | {summary['input_tokens']} | "
+            f"{summary['output_tokens']} | ${summary['total_usd']:.6f} |"
+        )
+        return "\n".join(lines) + "\n"
+    if fmt == "text":
+        lines = [f"Cost report — {summary['calls']} calls, ${summary['total_usd']:.6f} total"]
+        for model, bucket in sorted(by_model.items()):
+            lines.append(
+                f"  {model}: {bucket['calls']} calls, "
+                f"{bucket['total_tokens']} tok, ${bucket['total_usd']:.6f}"
+            )
+        return "\n".join(lines) + "\n"
+    raise ValueError(f"unknown format {fmt!r}; choose text or markdown")

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gemini-agent-toolkit"
-version = "0.4.0"
+version = "0.5.0"
 description = "Gemini-native agent toolkit with parallel tools, eval harness, a gat CLI, streaming, tool calling, structured output, prompt caching, and cost tracking."
 readme = "README.md"
 requires-python = ">=3.11"

@@ -67,6 +67,24 @@ TokenInfo(symbol='PEPE', market_cap_usd=50000000.0, risk_score=6)
 {'total_usd': 0.0023, 'calls': 3, 'cached_tokens': 1200, ...}
 ```
 
+### Cost budget
+
+Stop a run before it overspends, and print a per-model breakdown:
+
+```python
+from gat import BudgetExceededError, format_cost_report
+
+tracker = client.cost_tracker
+# inside an agent loop, after each step:
+try:
+    tracker.assert_within(0.05)   # hard $0.05 cap -> raises BudgetExceededError
+except BudgetExceededError as exc:
+    print(f"stopping: spent ${exc.spent:.4f} over ${exc.cap:.4f}")
+
+print(format_cost_report(tracker, "markdown"))
+print("remaining:", tracker.remaining(0.05))
+```
+
 ## Streaming
 
 Stream direct model output while keeping token usage in `CostTracker`:
